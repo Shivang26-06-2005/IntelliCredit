@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntelliCredit — Credit Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #0f2545;
+    --blue:   #1a56db;
+    --lblue:  #e8f0fe;
+    --green:  #0d7a4e;
+    --lgreen: #e6f4ee;
+    --red:    #c0392b;
+    --lred:   #fdecea;
+    --gray1:  #f7f8fa;
+    --gray2:  #e9ecef;
+    --gray3:  #adb5bd;
+    --gray4:  #495057;
+    --text:   #1a1f2e;
+    --white:  #ffffff;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+    --radius: 10px;
+  }
+
+  /* ── SWOT ──────────────────────────────────────────────────────── */
+  .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  .swot-box { border-radius: 8px; padding: 14px 16px; }
+  .swot-box.s { background: #e6f4ee; border-left: 4px solid #0d7a4e; }
+  .swot-box.w { background: #fff8e1; border-left: 4px solid #f59e0b; }
+  .swot-box.o { background: #e8f0fe; border-left: 4px solid #1a56db; }
+  .swot-box.t { background: #fdecea; border-left: 4px solid #c0392b; }
+  .swot-box h4 { font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; margin-bottom: 8px; opacity: .7; }
+  .swot-box ul { list-style: none; padding: 0; }
+  .swot-box ul li { font-size: 12.5px; line-height: 1.55; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,.06); }
+  .swot-box ul li:last-child { border-bottom: none; }
+  .swot-box ul li::before { content: "• "; opacity: .5; }
+
+  /* ── Risk Flags ─────────────────────────────────────────────────── */
+  .flag-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray2); font-size: 13px; }
+  .flag-row:last-child { border-bottom: none; }
+  .flag-sev { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; margin-top: 2px; }
+  .flag-sev.critical { background: #fdecea; color: #c0392b; }
+  .flag-sev.high     { background: #fff0e6; color: #c05621; }
+  .flag-sev.medium   { background: #fff8e1; color: #92610a; }
+  .flag-desc { flex: 1; }
+  .flag-meta { font-size: 11px; color: var(--gray3); margin-top: 2px; }
+  .no-flags  { color: var(--green); font-size: 13px; padding: 8px 0; }
+
+  /* ── ML Features ────────────────────────────────────────────────── */
+  .feat-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gray2); font-size: 12.5px; }
+  .feat-row:last-child { border-bottom: none; }
+  .feat-name { width: 180px; flex-shrink: 0; color: var(--gray4); }
+  .feat-bar-wrap { flex: 1; background: var(--gray2); border-radius: 4px; height: 7px; overflow: hidden; }
+  .feat-bar { height: 100%; border-radius: 4px; }
+  .feat-val  { width: 60px; text-align: right; font-family: 'DM Mono', monospace; font-size: 11px; }
+  .section-divider { border: none; border-top: 1px solid var(--gray2); margin: 20px 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray1);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────── */
+  header {
+    background: var(--navy);
+    color: white;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header .logo {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -.3px;
+  }
+  header .logo span { color: #60a5fa; }
+  header .badge {
+    margin-left: auto;
+    background: rgba(255,255,255,.12);
+    color: #93c5fd;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────── */
+  .container { max-width: 860px; margin: 0 auto; padding: 36px 20px 60px; }
+
+  /* ── Step indicator ──────────────────────────────────────────── */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray3);
+    flex: 1;
+  }
+  .step.active { color: var(--blue); }
+  .step.done   { color: var(--green); }
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    flex-shrink: 0;
+  }
+  .step.active .step-num { background: var(--blue); border-color: var(--blue); color: white; }
+  .step.done   .step-num { background: var(--green); border-color: var(--green); color: white; }
+  .step-line {
+    flex: 1; height: 2px;
+    background: var(--gray2);
+    margin: 0 8px;
+  }
+  .step-line.done { background: var(--green); }
+
+  /* ── Cards ───────────────────────────────────────────────────── */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon {
+    width: 28px; height: 28px;
+    background: var(--lblue);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  /* ── Form fields ─────────────────────────────────────────────── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray4);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .field input, .field select {
+    height: 38px;
+    border: 1.5px solid var(--gray2);
+    border-radius: 7px;
+    padding: 0 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: white;
+    transition: border-color .15s;
+    outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--blue); }
+  .field input.error { border-color: var(--red); }
+
+  /* ── Document upload grid ────────────────────────────────────── */
+  .doc-grid { display: flex; flex-direction: column; gap: 10px; }
+
+  .doc-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1.5px dashed var(--gray2);
+    border-radius: 8px;
+    transition: all .15s;
+    cursor: pointer;
+  }
+  .doc-row:hover { border-color: var(--blue); background: var(--lblue); }
+  .doc-row.uploaded { border-style: solid; border-color: var(--green); background: var(--lgreen); }
+  .doc-row.uploading { border-color: var(--blue); background: var(--lblue); opacity: .7; }
+
+  .doc-icon {
+    width: 36px; height: 36px;
+    border-radius: 7px;
+    background: var(--gray1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .doc-row.uploaded .doc-icon { background: var(--lgreen); }
+
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-name { font-size: 13px; font-weight: 600; color: var(--navy); }
+  .doc-desc { font-size: 12px; color: var(--gray3); margin-top: 1px; }
+  .doc-file { font-size: 12px; color: var(--green); margin-top: 2px; font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+
+  .doc-status {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--gray2);
+    color: var(--gray4);
+    white-space: nowrap;
+  }
+  .doc-row.uploaded .doc-status { background: var(--lgreen); color: var(--green); }
+  .doc-row.uploading .doc-status { background: var(--lblue); color: var(--blue); }
+
+  .doc-input { display: none; }
+
+  /* ── Classification badge row ────────────────────────────────── */
+  .classify-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .classify-label { font-size: 11px; color: var(--gray4); }
+  .classify-select {
+    font-size: 12px;
+    border: 1px solid var(--gray2);
+    border-radius: 5px;
+    padding: 2px 8px;
+    height: 26px;
+    background: white;
+    color: var(--text);
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .verify-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    height: 26px;
+    border: none;
+    border-radius: 5px;
+    background: var(--green);
+    color: white;
+    cursor: pointer;
+    display: none;
+  }
+  .verify-btn:hover { opacity: .85; }
+
+  /* ── Buttons ─────────────────────────────────────────────────── */
+  .btn {
+    height: 40px;
+    padding: 0 22px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #1746c0; }
+  .btn-primary:disabled { background: var(--gray3); cursor: not-allowed; }
+  .btn-outline {
+    background: white;
+    color: var(--gray4);
+    border: 1.5px solid var(--gray2);
+  }
+  .btn-outline:hover { border-color: var(--gray3); }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { opacity: .88; }
+
+  .btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  /* ── Alert / Status ──────────────────────────────────────────── */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .alert.info    { background: var(--lblue);  color: #1a4da0; display: block; }
+  .alert.success { background: var(--lgreen); color: var(--green); display: block; }
+  .alert.error   { background: var(--lred);   color: var(--red); display: block; }
+
+  /* ── Results panel ───────────────────────────────────────────── */
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .result-box {
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: var(--gray1);
+    border: 1.5px solid var(--gray2);
+    text-align: center;
+  }
+  .result-box .rb-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--gray3); font-weight: 500; }
+  .result-box .rb-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-family: 'DM Mono', monospace; }
+  .result-box.green { background: var(--lgreen); border-color: #a3d9be; }
+  .result-box.green .rb-value { color: var(--green); }
+  .result-box.orange { background: #fff7ed; border-color: #fcd5a0; }
+  .result-box.orange .rb-value { color: #b45309; }
+  .result-box.red { background: var(--lred); border-color: #f5b4ae; }
+  .result-box.red .rb-value { color: var(--red); }
+
+  .rec-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .rec-badge.approve  { background: var(--lgreen); color: var(--green); }
+  .rec-badge.conditional { background: #fff7ed; color: #b45309; }
+  .rec-badge.reject   { background: var(--lred); color: var(--red); }
+
+  /* ── Spinner ─────────────────────────────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+
+  /* ── Sections toggle ─────────────────────────────────────────── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Progress bar ────────────────────────────────────────────── */
+  .progress-bar {
+    height: 4px;
+    background: var(--gray2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 2px;
+    transition: width .4s ease;
+    width: 0%;
+  }
+
+  /* ── Ratios table ────────────────────────────────────────────── */
+  .ratio-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ratio-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--gray1);
+    border-bottom: 2px solid var(--gray2);
+    color: var(--gray4);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .ratio-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--gray2);
+    font-family: 'DM Mono', monospace;
+  }
+  .ratio-table tr:last-child td { border-bottom: none; }
+  .good  { color: var(--green); font-weight: 500; }
+  .warn  { color: #b45309; font-weight: 500; }
+  .crit  { color: var(--red); font-weight: 500; }
+
+  .footnote { font-size: 11px; color: var(--gray3); margin-top: 8px; }
+
+  /* ════════════════════════════════════════════════════════════════
+     ██████  ANALYSIS SECTION — DASHBOARD GRID LAYOUT
+     Full-width container so it can use wider viewport real estate.
+     ════════════════════════════════════════════════════════════════ */
+
+  /* Override the default narrow container only for section 4 */
+  #sec4 .analysis-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+    width: 100%;
+  }
+
+  /* ── Analysis Loading / Alert bar ───────────────────────────── */
+  #alert4 {
+    max-width: 1400px;
+    margin: 0 auto 16px;
+    padding: 0 20px;
+  }
+  #alert4.alert {
+    padding: 12px 20px;
+    border-radius: 8px;
+  }
+
+  /* ── Sticky Tab Navigation for analysis panels ──────────────── */
+  .analysis-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--white);
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 2px solid var(--gray2);
+    overflow-x: auto;
+    position: sticky;
+    top: 56px; /* below header */
+    z-index: 50;
+    box-shadow: var(--shadow);
+    scrollbar-width: none;
+  }
+  .analysis-tabs::-webkit-scrollbar { display: none; }
+
+  .tab-btn {
+    padding: 12px 18px;
+    font-size: 12.5px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--gray3);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: color .15s, border-color .15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--navy); }
+  .tab-btn.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+    font-weight: 600;
+  }
+
+  /* ── Tab Content Panels ──────────────────────────────────────── */
+  .tab-panel { display: none; padding-top: 20px; }
+  .tab-panel.active { display: block; }
+
+  /* ── OVERVIEW TAB — 3-column asymmetric grid ─────────────────── */
+  /*
+   * Layout:
+   *   [ Score Header (full width) ]
+   *   [ Recommendation + Rationale ] [ Model PDs ] [ Anomaly ]
+   */
+  .overview-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .overview-row2 {
+    display: grid;
+    grid-template-columns: 2fr 1.4fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* Score boxes inside the hero override result-grid to be inline */
+  #scoreCard .result-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    margin-bottom: 14px;
+  }
+
+  /* ── FINANCIALS TAB — 2-column ratios + distress side by side ── */
+  /*
+   * Layout:
+   *   [ Financial Ratios (left, wide) ] [ Distress & Cash Flow (right) ]
+   */
+  .financials-layout {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* ── RISK TAB — flags left, SHAP right ───────────────────────── */
+  /*
+   * Layout:
+   *   [ Risk Flags + Signals (left) ] [ SHAP Waterfall (right) ]
+   */
+  .risk-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* ── INTELLIGENCE TAB — SWOT top, CAM below ─────────────────── */
+  /*
+   * Layout:
+   *   [ SWOT (full width, 2x2 already) ]
+   *   [ CAM Preview (full width) ]
+   */
+  .intelligence-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* ── ML TAB — stats left, samples right ─────────────────────── */
+  /*
+   * Layout:
+   *   [ Label Form + Stats (left) ] [ Samples Table (right, wider) ]
+   */
+  .ml-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* ── Panel Cards inside analysis (no bottom margin stacking) ── */
+  .analysis-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    /* No margin-bottom — grid gap handles spacing */
+  }
+
+  /* ── Download bar anchored at top of overview ────────────────── */
+  .dl-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 10px 0 4px;
+  }
+
+  /* ── Responsive breakpoints ──────────────────────────────────── */
+  @media (max-width: 900px) {
+    .overview-row2      { grid-template-columns: 1fr 1fr; }
+    .overview-row2 > :last-child { grid-column: 1 / -1; }
+    .financials-layout  { grid-template-columns: 1fr; }
+    .risk-layout        { grid-template-columns: 1fr; }
+    .ml-layout          { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .grid-2, .grid-3, .result-grid { grid-template-columns: 1fr; }
+    .card { padding: 20px 18px; }
+    .overview-row2 { grid-template-columns: 1fr; }
+    .analysis-tabs { top: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Intelli<span>Credit</span></div>
+  <span class="badge">v1.0 · Powered by Ollama</span>
+</header>
+
+<div class="container">
+
+  <!-- ── Step Indicator ────────────────────────────────────────── -->
+  <div class="steps">
+    <div class="step active" id="s1">
+      <div class="step-num">1</div>
+      <span>Entity</span>
+    </div>
+    <div class="step-line" id="l1"></div>
+    <div class="step" id="s2">
+      <div class="step-num">2</div>
+      <span>Loan Details</span>
+    </div>
+    <div class="step-line" id="l2"></div>
+    <div class="step" id="s3">
+      <div class="step-num">3</div>
+      <span>Documents</span>
+    </div>
+    <div class="step-line" id="l3"></div>
+    <div class="step" id="s4">
+      <div class="step-num">4</div>
+      <span>Analysis</span>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 1 — Entity Details
+       (unchanged from original)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="section active" id="sec1">
+    <div class="card">
+      <div class="card-title">
+        <div class="icon">🏢</div>
+        Entity Information
+      </div>
+      <div id="alert1" class="alert"></div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Company Name *</label>
+          <input id="company_name" type="text" placeholder="Acme Industries Ltd" />
+        </div>
+        <div class="field">
+          <label>CIN</label>
+          <input id="cin" type="text" placeholder="U12345MH2010PTC123456" />
+        </div>
+      </div>
+      <div class="grid-3" style="margin-bottom:14px">
+        <div class="field">
+          <label>PAN</label>
+          <input id="pan" type="text" placeholder="AABCA1234Z" />
+        </div>
+        <div class="field">
+          <label>Sector</label>
+          <input id="sector" type="text" placeholder="Manufacturing" />
+        </div>
+        <div class="field">
+          <label>Sub-sector</label>
+          <input id="subsector" type="text" placeholder="Steel" />
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Annual Turnover (₹ Cr)</label>
+          <input id="annual_turnover" type="number" placeholder="5000" />
+        </div>
+        <div class="field">
+          <label>Headquarters</label>
+          <input id="headquarters" type="text" placeholder="Mumbai" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="submitEntity()">
+          <span class="spinner" id="sp1"></span>
+          Next: Loan Details →
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 2 — Loan Details
+       (unchanged from original)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec2">
+    <div class="card">
+      <div class="card-title">
+        <div class="icon">💰</div>
+        Loan Details
+      </div>
+      <div id="alert2" class="alert"></div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Loan Type *</label>
+          <select id="loan_type">
+            <option value="">— Select —</option>
+            <option value="term_loan">Term Loan</option>
+            <option value="working_capital">Working Capital</option>
+            <option value="overdraft">Overdraft</option>
+            <option value="letter_of_credit">Letter of Credit</option>
+            <option value="bank_guarantee">Bank Guarantee</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Loan Amount (₹ Cr) *</label>
+          <input id="loan_amount" type="number" placeholder="500" />
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="field">
+          <label>Tenure (months) *</label>
+          <input id="tenure_months" type="number" placeholder="60" />
+        </div>
+        <div class="field">
+          <label>Interest Rate (%)</label>
+          <input id="interest_rate" type="number" step="0.01" placeholder="9.5" />
+        </div>
+        <div class="field">
+          <label>Loan Purpose</label>
+          <input id="loan_purpose" type="text" placeholder="Plant expansion" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goTo(1)">← Back</button>
+        <button class="btn btn-primary" onclick="submitLoan()">
+          <span class="spinner" id="sp2"></span>
+          Next: Upload Documents →
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 3 — Document Upload
+       (unchanged from original)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="sec3">
+    <div class="card">
+      <div class="card-title">
+        <div class="icon">📂</div>
+        Upload Financial Documents
+      </div>
+      <div id="alert3" class="alert info">Upload all 5 documents for best analysis accuracy. PDF format recommended.</div>
+
+      <div class="doc-grid" id="docGrid">
+
+        <!-- ALM Statement -->
+        <div class="doc-row" id="row_alm" onclick="document.getElementById('file_alm').click()">
+          <input class="doc-input" type="file" id="file_alm" accept=".pdf,.docx,.xlsx,.csv,.txt"
+                 onchange="handleUpload('alm','alm_statement',this)" />
+          <div class="doc-icon">📊</div>
+          <div class="doc-info">
+            <div class="doc-name">ALM Statement</div>
+            <div class="doc-desc">Asset-Liability Management document</div>
+            <div class="doc-file" id="fname_alm"></div>
+            <div class="classify-row" id="cr_alm" style="display:none">
+              <span class="classify-label">Detected:</span>
+              <select class="classify-select" id="cls_alm" onclick="event.stopPropagation()">
+                <option value="alm_statement">ALM Statement</option>
+                <option value="annual_report">Annual Report</option>
+                <option value="shareholding_pattern">Shareholding Pattern</option>
+                <option value="borrowing_profile">Borrowing Profile</option>
+                <option value="portfolio_performance">Portfolio Performance</option>
+                <option value="balance_sheet">Balance Sheet</option>
+                <option value="pnl_statement">P&L Statement</option>
+                <option value="cash_flow">Cash Flow</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <button class="verify-btn" id="vbtn_alm" onclick="event.stopPropagation();verifyClass('alm')">✓ Confirm</button>
+            </div>
+          </div>
+          <div class="doc-status" id="stat_alm">Optional</div>
+        </div>
+
+        <!-- Shareholding Pattern -->
+        <div class="doc-row" id="row_shp" onclick="document.getElementById('file_shp').click()">
+          <input class="doc-input" type="file" id="file_shp" accept=".pdf,.docx,.xlsx,.csv,.txt"
+                 onchange="handleUpload('shp','shareholding_pattern',this)" />
+          <div class="doc-icon">📋</div>
+          <div class="doc-info">
+            <div class="doc-name">Shareholding Pattern</div>
+            <div class="doc-desc">Promoter, FII, DII, public holding breakdown</div>
+            <div class="doc-file" id="fname_shp"></div>
+            <div class="classify-row" id="cr_shp" style="display:none">
+              <span class="classify-label">Detected:</span>
+              <select class="classify-select" id="cls_shp" onclick="event.stopPropagation()">
+                <option value="alm_statement">ALM Statement</option>
+                <option value="annual_report">Annual Report</option>
+                <option value="shareholding_pattern">Shareholding Pattern</option>
+                <option value="borrowing_profile">Borrowing Profile</option>
+                <option value="portfolio_performance">Portfolio Performance</option>
+                <option value="balance_sheet">Balance Sheet</option>
+                <option value="pnl_statement">P&L Statement</option>
+                <option value="cash_flow">Cash Flow</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <button class="verify-btn" id="vbtn_shp" onclick="event.stopPropagation();verifyClass('shp')">✓ Confirm</button>
+            </div>
+          </div>
+          <div class="doc-status" id="stat_shp">Optional</div>
+        </div>
+
+        <!-- Borrowing Profile -->
+        <div class="doc-row" id="row_bor" onclick="document.getElementById('file_bor').click()">
+          <input class="doc-input" type="file" id="file_bor" accept=".pdf,.docx,.xlsx,.csv,.txt"
+                 onchange="handleUpload('bor','borrowing_profile',this)" />
+          <div class="doc-icon">🏦</div>
+          <div class="doc-info">
+            <div class="doc-name">Borrowing Profile</div>
+            <div class="doc-desc">Existing debt schedule and credit facilities</div>
+            <div class="doc-file" id="fname_bor"></div>
+            <div class="classify-row" id="cr_bor" style="display:none">
+              <span class="classify-label">Detected:</span>
+              <select class="classify-select" id="cls_bor" onclick="event.stopPropagation()">
+                <option value="alm_statement">ALM Statement</option>
+                <option value="annual_report">Annual Report</option>
+                <option value="shareholding_pattern">Shareholding Pattern</option>
+                <option value="borrowing_profile">Borrowing Profile</option>
+                <option value="portfolio_performance">Portfolio Performance</option>
+                <option value="balance_sheet">Balance Sheet</option>
+                <option value="pnl_statement">P&L Statement</option>
+                <option value="cash_flow">Cash Flow</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <button class="verify-btn" id="vbtn_bor" onclick="event.stopPropagation();verifyClass('bor')">✓ Confirm</button>
+            </div>
+          </div>
+          <div class="doc-status" id="stat_bor">Optional</div>
+        </div>
+
+        <!-- Annual Report -->
+        <div class="doc-row" id="row_ann" onclick="document.getElementById('file_ann').click()">
+          <input class="doc-input" type="file" id="file_ann" accept=".pdf,.docx,.xlsx,.csv,.txt"
+                 onchange="handleUpload('ann','annual_report',this)" />
+          <div class="doc-icon">📄</div>
+          <div class="doc-info">
+            <div class="doc-name">Annual Report *</div>
+            <div class="doc-desc">P&L, Balance Sheet, Cash Flow Statement</div>
+            <div class="doc-file" id="fname_ann"></div>
+            <div class="classify-row" id="cr_ann" style="display:none">
+              <span class="classify-label">Detected:</span>
+              <select class="classify-select" id="cls_ann" onclick="event.stopPropagation()">
+                <option value="alm_statement">ALM Statement</option>
+                <option value="annual_report">Annual Report</option>
+                <option value="shareholding_pattern">Shareholding Pattern</option>
+                <option value="borrowing_profile">Borrowing Profile</option>
+                <option value="portfolio_performance">Portfolio Performance</option>
+                <option value="balance_sheet">Balance Sheet</option>
+                <option value="pnl_statement">P&L Statement</option>
+                <option value="cash_flow">Cash Flow</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <button class="verify-btn" id="vbtn_ann" onclick="event.stopPropagation();verifyClass('ann')">✓ Confirm</button>
+            </div>
+          </div>
+          <div class="doc-status" id="stat_ann">Required</div>
+        </div>
+
+        <!-- Portfolio Performance -->
+        <div class="doc-row" id="row_prt" onclick="document.getElementById('file_prt').click()">
+          <input class="doc-input" type="file" id="file_prt" accept=".pdf,.docx,.xlsx,.csv,.txt"
+                 onchange="handleUpload('prt','portfolio_performance',this)" />
+          <div class="doc-icon">📈</div>
+          <div class="doc-info">
+            <div class="doc-name">Portfolio Performance</div>
+            <div class="doc-desc">Portfolio cuts / performance data</div>
+            <div class="doc-file" id="fname_prt"></div>
+            <div class="classify-row" id="cr_prt" style="display:none">
+              <span class="classify-label">Detected:</span>
+              <select class="classify-select" id="cls_prt" onclick="event.stopPropagation()">
+                <option value="alm_statement">ALM Statement</option>
+                <option value="annual_report">Annual Report</option>
+                <option value="shareholding_pattern">Shareholding Pattern</option>
+                <option value="borrowing_profile">Borrowing Profile</option>
+                <option value="portfolio_performance">Portfolio Performance</option>
+                <option value="balance_sheet">Balance Sheet</option>
+                <option value="pnl_statement">P&L Statement</option>
+                <option value="cash_flow">Cash Flow</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <button class="verify-btn" id="vbtn_prt" onclick="event.stopPropagation();verifyClass('prt')">✓ Confirm</button>
+            </div>
+          </div>
+          <div class="doc-status" id="stat_prt">Optional</div>
+        </div>
+
+      </div><!-- /doc-grid -->
+
+      <div class="progress-bar"><div class="progress-fill" id="uploadProgress"></div></div>
+      <p class="footnote" style="margin-top:8px" id="uploadCount">0 of 5 documents uploaded</p>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goTo(2)">← Back</button>
+        <button class="btn btn-primary" onclick="startAnalysis()" id="analyseBtn" disabled>
+          <span class="spinner" id="sp3"></span>
+          Run Analysis →
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 4 — Analysis Results Dashboard
+       ─────────────────────────────────────────────────────────────
+       REDESIGNED: instead of single-column cards stacked top-to-
+       bottom, results now live inside a TABBED DASHBOARD that uses
+       the full viewport width. Five tabs:
+         1. Overview  — score, recommendation, model PDs, anomaly
+         2. Financials — ratios grid + distress side by side
+         3. Risk       — rule flags + SHAP waterfall side by side
+         4. Intelligence — SWOT + CAM (LLM outputs)
+         5. ML Training — label form + samples table side by side
+  ══════════════════════════════════════════════════════════════ -->
+</div><!-- /container (narrow) — analysis uses its own wide container below -->
+
+<!-- ─── Analysis section lives OUTSIDE the narrow .container ──────────── -->
+<div class="section" id="sec4" style="padding: 0 0 60px;">
+
+  <!-- Status alert while analysis is running -->
+  <div class="container" style="padding-bottom:0">
+    <div id="alert4" class="alert info">Analysis is running. This may take 1–3 minutes…</div>
+  </div>
+
+  <!-- ── Everything below is hidden until analysis completes ──── -->
+  <div id="unifiedOutput" style="display:none">
+
+    <!-- Wide analysis container — breaks out of narrow .container -->
+    <div class="analysis-container">
+
+      <!-- Download bar + model badge -->
+      <div class="dl-bar">
+        <span id="modelVersionBadge" style="font-size:10px;padding:3px 10px;border-radius:20px;background:var(--lblue);color:var(--blue);font-weight:600"></span>
+        <button class="btn btn-green" onclick="downloadReport()" id="dlBtn" style="height:34px;font-size:13px">⬇ Download PDF Report</button>
+      </div>
+
+      <!-- ── Tab Navigation ───────────────────────────────────── -->
+      <!--
+        Each tab button calls switchTab(id) to toggle .active class
+        on both the button and its corresponding .tab-panel.
+      -->
+      <div class="analysis-tabs" id="analysisTabs">
+        <button class="tab-btn active" onclick="switchTab('tab-overview')" data-tab="tab-overview">
+          ✅ Overview
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-financials')" data-tab="tab-financials">
+          📊 Financials
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-risk')" data-tab="tab-risk">
+          ⚠️ Risk & SHAP
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-intelligence')" data-tab="tab-intelligence">
+          🔍 Intelligence
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-ml')" data-tab="tab-ml">
+          🤖 ML Training
+        </button>
+      </div>
+
+
+      <!-- ════════════════════════════════════════════════════════
+           TAB 1 — OVERVIEW
+           Layout:
+             Row A (full width): Score KPIs
+             Row B (3-col):
+               Col1 (wide):  Recommendation + Rationale + Conditions
+               Col2 (mid):   Individual Model PDs
+               Col3 (narrow):Anomaly score (rendered by JS into scoreCard)
+      ════════════════════════════════════════════════════════ -->
+      <div class="tab-panel active" id="tab-overview">
+
+        <!-- Row A: Score KPIs — full width card -->
+        <div class="analysis-card" id="scoreCard" style="margin-bottom:16px">
+          <div class="card-title" style="margin-bottom:14px">
+            <div class="icon">✅</div>Analysis Complete
+          </div>
+          <!-- result-grid injected by renderScoreHeader() -->
+          <div class="result-grid" id="resultGrid"></div>
+        </div>
+
+        <!-- Row B: three-column cards -->
+        <div class="overview-row2">
+
+          <!-- Col 1: Recommendation + Rationale + Conditions -->
+          <div class="analysis-card" id="recCard">
+            <div class="card-title" style="margin-bottom:12px">
+              <div class="icon">📋</div>Recommendation
+            </div>
+            <div style="margin-bottom:12px">
+              <span class="classify-label" style="display:block;margin-bottom:8px;font-size:11px;font-weight:600;color:var(--gray3);letter-spacing:.5px">DECISION</span>
+              <span class="rec-badge" id="recBadge"></span>
+            </div>
+            <div id="recRationale" style="font-size:13px;color:var(--gray4);line-height:1.6"></div>
+            <!-- Conditions for approval (shown if conditional) -->
+            <div id="conditionsList" style="display:none;margin-top:12px"></div>
+          </div>
+
+          <!-- Col 2: Individual Model PDs -->
+          <div class="analysis-card" id="modelPdCard" style="display:none">
+            <div class="card-title" style="margin-bottom:12px">
+              <div class="icon">🎯</div>Model PD Breakdown
+            </div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--gray3);margin-bottom:8px">PROBABILITY OF DEFAULT PER MODEL</div>
+            <!-- modelPdGrid injected by renderModelPDs() -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="modelPdGrid"></div>
+          </div>
+
+          <!-- Col 3: Anomaly + extra metrics (JS appends into scoreCard originally — 
+               we re-route anomaly to this dedicated card via renderAnomalyScore) -->
+          <div class="analysis-card" id="anomalyCard" style="display:none">
+            <div class="card-title" style="margin-bottom:12px">
+              <div class="icon">🔬</div>Anomaly Detection
+            </div>
+            <!-- anomaly content injected by renderAnomalyScore() -->
+            <div id="anomalyContent"></div>
+          </div>
+
+        </div><!-- /overview-row2 -->
+      </div><!-- /tab-overview -->
+
+
+      <!-- ════════════════════════════════════════════════════════
+           TAB 2 — FINANCIALS
+           Layout (2-col):
+             Left (wider):  Financial Ratios grouped grid
+             Right:         Distress & Cash Flow indicators
+      ════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-financials">
+        <div class="financials-layout">
+
+          <!-- Left: Financial Ratios -->
+          <div class="analysis-card" id="ratiosCard">
+            <div class="card-title">
+              <div class="icon">📊</div>Financial Ratios
+            </div>
+            <!-- ratio groups injected by renderRatios() -->
+            <div id="ratioGroups"></div>
+          </div>
+
+          <!-- Right: Distress & Cash Flow (hidden until data arrives) -->
+          <div class="analysis-card" id="distressCard" style="display:none">
+            <div class="card-title">
+              <div class="icon">📉</div>Distress & Cash Flow
+            </div>
+            <!-- distress content injected by renderDistress() -->
+            <div id="distressContent"></div>
+          </div>
+
+        </div>
+      </div><!-- /tab-financials -->
+
+
+      <!-- ════════════════════════════════════════════════════════
+           TAB 3 — RISK & SHAP
+           Layout (2-col equal):
+             Left:  Rule Flags + Research Signals
+             Right: SHAP Waterfall (XGBoost feature contributions)
+      ════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-risk">
+        <div class="risk-layout">
+
+          <!-- Left: Risk Flags -->
+          <div class="analysis-card" id="flagsCard">
+            <div class="card-title">
+              <div class="icon">⚠️</div>Risk Flags &amp; Signals
+            </div>
+            <!-- flags injected by renderRiskFlags() -->
+            <div id="flagsList"></div>
+          </div>
+
+          <!-- Right: SHAP (hidden until data arrives) -->
+          <div class="analysis-card" id="shapCard" style="display:none">
+            <div class="card-title">
+              <div class="icon">🤖</div>SHAP Feature Contributions
+            </div>
+            <p style="font-size:12px;color:var(--gray3);margin-bottom:12px">
+              Red = pushes toward default risk · Green = reduces risk
+            </p>
+            <!-- shap list injected by renderShap() -->
+            <div id="shapList"></div>
+          </div>
+
+        </div>
+      </div><!-- /tab-risk -->
+
+
+      <!-- ════════════════════════════════════════════════════════
+           TAB 4 — INTELLIGENCE (LLM Outputs)
+           Layout (single column, full width):
+             Row A: SWOT Analysis (2x2 grid inside)
+             Row B: CAM Report (expandable)
+      ════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-intelligence">
+        <div class="intelligence-layout">
+
+          <!-- SWOT (hidden until data arrives) -->
+          <div class="analysis-card" id="swotCard" style="display:none">
+            <div class="card-title">
+              <div class="icon">🔍</div>SWOT Analysis
+            </div>
+            <!-- swot grid injected by renderSwot() -->
+            <div class="swot-grid" id="swotGrid"></div>
+          </div>
+
+          <!-- CAM placeholder — renderCAM() will append camCard here via JS -->
+          <div id="camAnchor"></div>
+
+        </div>
+      </div><!-- /tab-intelligence -->
+
+
+      <!-- ════════════════════════════════════════════════════════
+           TAB 5 — ML TRAINING
+           Layout (2-col):
+             Left:  Label form + stats counters + AUC + feature importances
+             Right: Labeled samples table
+      ════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-ml">
+        <div class="ml-layout">
+
+          <!-- Left: Label form + ML status -->
+          <div class="analysis-card" id="labelCard">
+            <div class="card-title">
+              <div class="icon">🏷️</div>Label for ML Training
+              <span id="modelStatusBadge"
+                style="margin-left:auto;font-size:10px;padding:3px 10px;border-radius:20px;font-weight:600;background:var(--gray2);color:var(--gray3)">
+                No Model Yet
+              </span>
+            </div>
+
+            <p style="font-size:13px;color:var(--gray4);margin-bottom:14px">
+              Label analyses as <b>healthy</b> or <b>default</b>.
+              The <b>6-model ensemble</b> auto-trains after 10 labeled samples.
+            </p>
+
+            <!-- Sample counters -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+              <div style="background:var(--gray1);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:22px;font-weight:700;color:var(--navy);font-family:DM Mono,monospace" id="mlTotalSamples">0</div>
+                <div style="font-size:10px;color:var(--gray3);text-transform:uppercase;letter-spacing:.5px">Labeled</div>
+              </div>
+              <div style="background:var(--gray1);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:22px;font-weight:700;color:#c0392b;font-family:DM Mono,monospace" id="mlDefaults">0</div>
+                <div style="font-size:10px;color:var(--gray3);text-transform:uppercase;letter-spacing:.5px">Defaults</div>
+              </div>
+              <div style="background:var(--gray1);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:22px;font-weight:700;color:#0d7a4e;font-family:DM Mono,monospace" id="mlHealthy">0</div>
+                <div style="font-size:10px;color:var(--gray3);text-transform:uppercase;letter-spacing:.5px">Healthy</div>
+              </div>
+            </div>
+
+            <!-- AUC panel (shown after training) -->
+            <div id="aucPanel" style="display:none;text-align:center;padding:14px;margin-bottom:14px;background:var(--lgreen);border-radius:8px">
+              <div style="font-size:10px;color:var(--green);font-weight:600;letter-spacing:.5px;margin-bottom:4px">ENSEMBLE CV AUC-ROC</div>
+              <div style="font-size:32px;font-weight:700;color:var(--green);font-family:DM Mono,monospace" id="mlAuc">—</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px" id="individualAucs"></div>
+              <div style="font-size:11px;color:var(--gray3);margin-top:8px" id="mlTrainedAt"></div>
+            </div>
+
+            <!-- Label input form -->
+            <div style="background:var(--gray1);border-radius:8px;padding:12px;margin-bottom:12px">
+              <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+                <div style="flex:1;min-width:160px">
+                  <label style="font-size:11px;color:var(--gray3);display:block;margin-bottom:4px">OUTCOME</label>
+                  <select id="labelValue" style="width:100%;padding:8px 10px;border:1px solid var(--gray2);border-radius:6px;font-size:12px">
+                    <option value="0">✅ Healthy / Non-Default</option>
+                    <option value="1">❌ Default / Stressed</option>
+                  </select>
+                </div>
+                <div style="flex:1;min-width:140px">
+                  <label style="font-size:11px;color:var(--gray3);display:block;margin-bottom:4px">NOTES (optional)</label>
+                  <input id="labelNotes" type="text" placeholder="e.g. NPA declared 2024"
+                    style="width:100%;padding:8px 10px;border:1px solid var(--gray2);border-radius:6px;font-size:12px">
+                </div>
+                <button class="btn btn-outline" onclick="submitLabel()" style="flex-shrink:0;height:36px;font-size:13px">Add to Set</button>
+              </div>
+            </div>
+            <div id="labelMsg" style="font-size:12px;min-height:18px;color:var(--green)"></div>
+
+            <!-- XGBoost feature importances (shown after training) -->
+            <div id="featImportPanel" style="display:none;margin-top:16px">
+              <div style="font-size:12px;font-weight:600;color:var(--gray4);margin-bottom:10px;border-top:1px solid var(--gray2);padding-top:12px">
+                TOP XGBOOST FEATURE IMPORTANCES
+              </div>
+              <div id="featImportList"></div>
+            </div>
+          </div><!-- /labelCard -->
+
+          <!-- Right: Labeled samples table -->
+          <div class="analysis-card" id="samplesPanel" style="display:none">
+            <div class="card-title">
+              <div class="icon">📋</div>Labeled Samples
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="background:var(--gray1)">
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--gray3);font-weight:600;letter-spacing:.4px;border-bottom:2px solid var(--gray2)">COMPANY</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--gray3);font-weight:600;letter-spacing:.4px;border-bottom:2px solid var(--gray2)">LABEL</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--gray3);font-weight:600;letter-spacing:.4px;border-bottom:2px solid var(--gray2)">SCORE</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--gray3);font-weight:600;letter-spacing:.4px;border-bottom:2px solid var(--gray2)">RATING</th>
+                  <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--gray3);font-weight:600;letter-spacing:.4px;border-bottom:2px solid var(--gray2)">NOTES</th>
+                  <th style="border-bottom:2px solid var(--gray2)"></th>
+                </tr>
+              </thead>
+              <tbody id="samplesBody"></tbody>
+            </table>
+          </div><!-- /samplesPanel -->
+
+        </div><!-- /ml-layout -->
+      </div><!-- /tab-ml -->
+
+    </div><!-- /analysis-container -->
+  </div><!-- /unifiedOutput -->
+
+</div><!-- /sec4 -->
+
+
+<script>
+  // ── Config ────────────────────────────────────────────────────────────────
+  const API = 'http://localhost:8000/api/v1';
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let entityId = null;
+  let loanId   = null;
+  let docIds   = {};       // { alm: "uuid", shp: "uuid", ... }
+  let uploadedCount = 0;
+  const DOC_MAP = {
+    alm: 'alm_statement',
+    shp: 'shareholding_pattern',
+    bor: 'borrowing_profile',
+    ann: 'annual_report',
+    prt: 'portfolio_performance'
+  };
+
+  // ── Tab Switching ─────────────────────────────────────────────────────────
+  /*
+   * switchTab(panelId)
+   * Deactivates all tab buttons and panels, then activates the one
+   * matching panelId. Called by each tab button's onclick.
+   */
+  function switchTab(panelId) {
+    // Deactivate all buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    // Deactivate all panels
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    // Activate the clicked button (match by data-tab attribute)
+    const activeBtn = document.querySelector(`.tab-btn[data-tab="${panelId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    // Activate the target panel
+    const activePanel = document.getElementById(panelId);
+    if (activePanel) activePanel.classList.add('active');
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  function goTo(n) {
+    // Show sec1–sec3 inside the narrow .container;
+    // sec4 lives outside it — both are top-level siblings of .container
+    const secs = document.querySelectorAll('.section');
+    secs.forEach(s => s.classList.remove('active'));
+    document.getElementById('sec' + n).classList.add('active');
+
+    // Also make the narrow .container visible for steps 1–3, hidden for step 4
+    const narrowContainer = document.querySelector('.container');
+    if (n <= 3) {
+      narrowContainer.style.display = 'block';
+    } else {
+      narrowContainer.style.display = 'none';
+    }
+
+    updateSteps(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function updateSteps(active) {
+    for (let i = 1; i <= 4; i++) {
+      const s = document.getElementById('s' + i);
+      s.classList.remove('active', 'done');
+      if (i < active)  s.classList.add('done');
+      if (i === active) s.classList.add('active');
+    }
+    for (let i = 1; i <= 3; i++) {
+      const l = document.getElementById('l' + i);
+      l.classList.toggle('done', i < active);
+    }
+  }
+
+  function showAlert(id, type, msg) {
+    const el = document.getElementById(id);
+    el.className = 'alert ' + type;
+    el.textContent = msg;
+  }
+
+  function spin(id, on) {
+    const s = document.getElementById(id);
+    if (s) s.style.display = on ? 'block' : 'none';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  STEP 1 — Entity
+  // ══════════════════════════════════════════════════════════════════════════
+  async function submitEntity() {
+    const name = document.getElementById('company_name').value.trim();
+    if (!name) { showAlert('alert1', 'error', 'Company name is required.'); return; }
+
+    spin('sp1', true);
+    try {
+      const res = await fetch(`${API}/entities/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_name:    name,
+          cin:             document.getElementById('cin').value.trim() || null,
+          pan:             document.getElementById('pan').value.trim() || null,
+          sector:          document.getElementById('sector').value.trim() || null,
+          subsector:       document.getElementById('subsector').value.trim() || null,
+          annual_turnover: parseFloat(document.getElementById('annual_turnover').value) || null,
+          headquarters:    document.getElementById('headquarters').value.trim() || null,
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      entityId = data.id;
+      goTo(2);
+    } catch(e) {
+      showAlert('alert1', 'error', 'Failed to save entity: ' + e.message);
+    } finally {
+      spin('sp1', false);
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  STEP 2 — Loan
+  // ══════════════════════════════════════════════════════════════════════════
+  async function submitLoan() {
+    const ltype  = document.getElementById('loan_type').value;
+    const amount = document.getElementById('loan_amount').value;
+    const tenure = document.getElementById('tenure_months').value;
+    if (!ltype || !amount || !tenure) {
+      showAlert('alert2', 'error', 'Loan type, amount and tenure are required.');
+      return;
+    }
+    spin('sp2', true);
+    try {
+      const res = await fetch(`${API}/entities/${entityId}/loans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_id:     entityId,
+          loan_type:     ltype,
+          loan_amount:   parseFloat(amount),
+          tenure_months: parseInt(tenure),
+          interest_rate: parseFloat(document.getElementById('interest_rate').value) || null,
+          loan_purpose:  document.getElementById('loan_purpose').value.trim() || null,
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      loanId = data.id;
+      goTo(3);
+    } catch(e) {
+      showAlert('alert2', 'error', 'Failed to save loan: ' + e.message);
+    } finally {
+      spin('sp2', false);
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  STEP 3 — Upload
+  // ══════════════════════════════════════════════════════════════════════════
+  async function handleUpload(key, expectedType, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const row   = document.getElementById('row_' + key);
+    const stat  = document.getElementById('stat_' + key);
+    const fname = document.getElementById('fname_' + key);
+
+    row.classList.add('uploading');
+    stat.textContent = 'Uploading…';
+    fname.textContent = file.name;
+
+    const form = new FormData();
+    form.append('file', file);
+    if (document.getElementById('fiscal_year_' + key)) {
+      form.append('fiscal_year', document.getElementById('fiscal_year_' + key).value);
+    }
+
+    try {
+      const res = await fetch(`${API}/documents/upload/${entityId}`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+
+      docIds[key] = data.id;
+      row.classList.remove('uploading');
+      row.classList.add('uploaded');
+      stat.textContent = '✓ Uploaded';
+
+      // Show classification result and allow override
+      const crRow  = document.getElementById('cr_' + key);
+      const clsSel = document.getElementById('cls_' + key);
+      const vbtn   = document.getElementById('vbtn_' + key);
+      crRow.style.display = 'flex';
+      clsSel.value        = data.document_type || expectedType;
+      vbtn.style.display  = 'inline-flex';
+      vbtn.dataset.docId  = data.id;
+
+      uploadedCount++;
+      updateUploadProgress();
+
+    } catch(e) {
+      row.classList.remove('uploading');
+      stat.textContent   = '✗ Failed';
+      stat.style.color   = 'var(--red)';
+      showAlert('alert3', 'error', `Upload failed for ${key.toUpperCase()}: ` + e.message);
+    }
+  }
+
+  async function verifyClass(key) {
+    const docId   = document.getElementById('vbtn_' + key).dataset.docId;
+    const newType = document.getElementById('cls_' + key).value;
+    try {
+      await fetch(`${API}/documents/${docId}/classify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_type: newType, fiscal_year: null }),
+      });
+      const btn       = document.getElementById('vbtn_' + key);
+      btn.textContent = '✓ Confirmed';
+      btn.style.background = '#0d7a4e';
+    } catch(e) {
+      alert('Could not update classification: ' + e.message);
+    }
+  }
+
+  function updateUploadProgress() {
+    const pct = (uploadedCount / 5) * 100;
+    document.getElementById('uploadProgress').style.width = pct + '%';
+    document.getElementById('uploadCount').textContent    = uploadedCount + ' of 5 documents uploaded';
+    // Enable analyse button only after required Annual Report is uploaded
+    const annUploaded = document.getElementById('row_ann').classList.contains('uploaded');
+    document.getElementById('analyseBtn').disabled = !annUploaded;
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  STEP 4 — Analysis trigger + polling
+  // ══════════════════════════════════════════════════════════════════════════
+  async function startAnalysis() {
+    goTo(4);
+    spin('sp3', true);
+
+    const alertEl = document.getElementById('alert4');
+    alertEl.className = 'alert info';
+    alertEl.textContent = 'Analysis triggered — extraction, ratios, LLM research, risk scoring, SWOT, report generation…';
+    alertEl.style.display = 'block';
+    document.getElementById('unifiedOutput').style.display = 'none';
+
+    try {
+      const res = await fetch(`${API}/analysis/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loan_application_id: loanId, force_refresh: false }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await pollStatus();
+    } catch(e) {
+      alertEl.className   = 'alert error';
+      alertEl.textContent = 'Analysis failed: ' + e.message;
+      spin('sp3', false);
+    }
+  }
+
+  async function pollStatus() {
+    for (let i = 0; i < 80; i++) {
+      await sleep(5000);
+      try {
+        const res  = await fetch(`${API}/analysis/status/${loanId}`);
+        const data = await res.json();
+        if (data.status === 'completed') { await showUnifiedOutput(); return; }
+        if (data.status === 'failed')    throw new Error('Analysis pipeline failed — check server logs.');
+        const dots = '.'.repeat((i % 3) + 1);
+        document.getElementById('alert4').textContent = `Running${dots} (${(i+1)*5}s elapsed)`;
+      } catch(e) {
+        if (e.message.includes('pipeline')) throw e;
+      }
+    }
+    throw new Error('Analysis timed out after 6+ minutes.');
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  MASTER RENDER — fetches all API data then calls each section renderer
+  // ══════════════════════════════════════════════════════════════════════════
+  async function showUnifiedOutput() {
+    spin('sp3', false);
+    try {
+      const [rRes, rtRes, mlRes, camRes] = await Promise.all([
+        fetch(`${API}/analysis/risk/${loanId}`),
+        fetch(`${API}/analysis/ratios/${entityId}`),
+        fetch(`${API}/ml/status`),
+        fetch(`${API}/analysis/report/${loanId}/content`).catch(() => ({ ok: false })),
+      ]);
+      const risk     = await rRes.json();
+      const ratios   = await rtRes.json();
+      const mlStatus = await mlRes.json();
+      const camData  = camRes.ok ? await camRes.json() : {};
+
+      document.getElementById('alert4').style.display = 'none';
+      document.getElementById('unifiedOutput').style.display = 'block';
+
+      // ── Call each renderer in order ──
+      renderScoreHeader(risk);
+      renderModelPDs(risk);
+      renderAnomalyScore(risk);
+      renderRatios(ratios);
+      renderDistress(ratios);
+      renderSwot(risk.swot || {});
+      renderCAM(camData.content || '');
+      renderRiskFlags(risk);
+      renderShap(risk.feature_contributions || {});
+      renderMlPanel(risk, mlStatus);
+
+      // Default to Overview tab
+      switchTab('tab-overview');
+
+      // Scroll to top of analysis
+      document.getElementById('sec4').scrollIntoView({ behavior: 'smooth' });
+
+    } catch(e) {
+      const alertEl = document.getElementById('alert4');
+      alertEl.className   = 'alert error';
+      alertEl.textContent = 'Could not load results: ' + e.message;
+      alertEl.style.display = 'block';
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ① — Score KPI Header (Overview tab, full-width row)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderScoreHeader(risk) {
+    const score  = risk.risk_score ?? 0;
+    const rating = risk.credit_rating ?? 'N/A';
+    const pd     = risk.probability_of_default;
+    const pdStr  = pd != null ? (pd * 100).toFixed(1) + '%' : 'N/A';
+
+    const scCls = score <= 35 ? 'green' : score <= 60 ? 'orange' : 'red';
+    const rtCls = ['AAA','AA','A','BBB'].includes(rating) ? 'green' : ['BB','B'].includes(rating) ? 'orange' : 'red';
+    const pdCls = pd == null ? '' : pd < 0.2 ? 'green' : pd < 0.5 ? 'orange' : 'red';
+
+    document.getElementById('modelVersionBadge').textContent = risk.model_version || '';
+
+    document.getElementById('resultGrid').innerHTML = `
+      <div class="result-box ${scCls}">
+        <div class="rb-label">Composite Risk Score</div>
+        <div class="rb-value">${score.toFixed(1)}<small style="font-size:13px">/100</small></div>
+        <div style="font-size:10px;margin-top:4px;opacity:.7">
+          ${scCls === 'green' ? 'Low Risk' : scCls === 'orange' ? 'Medium Risk' : 'High Risk'}
+        </div>
+      </div>
+      <div class="result-box ${rtCls}">
+        <div class="rb-label">Credit Rating</div>
+        <div class="rb-value">${rating}</div>
+        <div style="font-size:10px;margin-top:4px;opacity:.7">${_ratingLabel(rating)}</div>
+      </div>
+      <div class="result-box ${pdCls}">
+        <div class="rb-label">Ensemble PD</div>
+        <div class="rb-value">${pdStr}</div>
+        <div style="font-size:10px;margin-top:4px;opacity:.7">
+          ${pd == null ? 'Rules-only mode' : '6-model ensemble'}
+        </div>
+      </div>
+    `;
+
+    // Recommendation badge — rendered in the separate recCard
+    const rec    = (risk.recommendation || '').toLowerCase();
+    const recMap = {
+      approve:             { cls: 'approve',     icon: '✅', label: 'Approved' },
+      conditional_approve: { cls: 'conditional', icon: '⚠️', label: 'Conditional Approval' },
+      reject:              { cls: 'reject',      icon: '❌', label: 'Rejected' },
+    };
+    const r = recMap[rec] || { cls: 'conditional', icon: 'ℹ️', label: rec };
+    document.getElementById('recBadge').className = 'rec-badge ' + r.cls;
+    document.getElementById('recBadge').innerHTML  = `${r.icon} ${r.label}`;
+    document.getElementById('recRationale').textContent = risk.recommendation_rationale || '';
+
+    const conds = risk.conditions || [];
+    if (conds.length) {
+      document.getElementById('conditionsList').innerHTML =
+        `<div style="background:#fff8e1;border-radius:8px;padding:12px;border-left:4px solid #f59e0b">
+          <div style="font-size:11px;font-weight:700;color:#92610a;margin-bottom:8px">CONDITIONS FOR APPROVAL</div>
+          ${conds.map(c => `<div style="font-size:12.5px;color:#4a3000;padding:3px 0">• ${c}</div>`).join('')}
+        </div>`;
+      document.getElementById('conditionsList').style.display = 'block';
+    }
+  }
+
+  function _ratingLabel(r) {
+    return {
+      AAA: 'Prime', AA: 'High Grade', A: 'Upper Medium', BBB: 'Lower Medium',
+      BB: 'Non-Investment', B: 'Speculative', CCC: 'Substantial Risk', D: 'Default'
+    }[r] || '';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ② — Individual Model PDs (Overview tab, col 2)
+  //  Now targets the new #modelPdCard instead of the old #modelPdRow
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderModelPDs(risk) {
+    const mpds = risk.model_pds || {};
+    if (!Object.keys(mpds).length) return;
+
+    const nameMap = {
+      xgboost: 'XGBoost', gradient_boosting: 'Grad. Boost',
+      random_forest: 'Random Forest', svm: 'SVM',
+      logistic_regression: 'Logistic Reg.', knn: 'KNN',
+      ensemble: '⚡ Ensemble',
+    };
+
+    let html = '';
+    for (const [key, val] of Object.entries(mpds)) {
+      const isEns = key === 'ensemble';
+      const color = val <= 25 ? '#0d7a4e' : val <= 55 ? '#f59e0b' : '#c0392b';
+      html += `
+        <div style="background:${isEns ? 'var(--navy)' : 'var(--gray1)'};border-radius:8px;
+             padding:10px;text-align:center;
+             ${isEns ? 'grid-column:span 2' : ''};
+             border:${isEns ? 'none' : '1px solid var(--gray2)'}">
+          <div style="font-size:${isEns ? '22' : '18'}px;font-weight:700;
+               color:${isEns ? '#fff' : color};font-family:DM Mono,monospace">
+            ${val.toFixed(1)}%
+          </div>
+          <div style="font-size:10px;color:${isEns ? 'rgba(255,255,255,.6)' : 'var(--gray3)'};margin-top:2px">
+            ${nameMap[key] || key}
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('modelPdGrid').innerHTML = html;
+    document.getElementById('modelPdCard').style.display = 'block';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ③ — Anomaly Score (Overview tab, col 3)
+  //  Redirected to #anomalyContent / #anomalyCard (new dedicated card)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderAnomalyScore(risk) {
+    const score = risk.anomaly_score;
+    if (score == null) return;
+
+    const color = score < 30 ? '#0d7a4e' : score < 60 ? '#f59e0b' : '#c0392b';
+    const label = score < 30 ? 'Normal Pattern' : score < 60 ? 'Slightly Unusual' : 'High Anomaly';
+
+    document.getElementById('anomalyContent').innerHTML = `
+      <div style="text-align:center;padding:10px 0 20px">
+        <div style="font-size:48px;font-weight:700;color:${color};font-family:DM Mono,monospace;line-height:1">
+          ${score.toFixed(1)}
+        </div>
+        <div style="font-size:11px;color:var(--gray3);margin-top:4px">out of 100</div>
+      </div>
+      <div style="background:var(--gray2);border-radius:6px;height:10px;overflow:hidden;margin-bottom:12px">
+        <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width .5s"></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:${color};text-align:center;margin-bottom:8px">${label}</div>
+      <div style="font-size:11px;color:var(--gray3);text-align:center">Isolation Forest detection</div>
+    `;
+    document.getElementById('anomalyCard').style.display = 'block';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ④ — Financial Ratios (Financials tab, left column)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderRatios(ratiosList) {
+    if (!ratiosList?.length) { document.getElementById('ratiosCard').style.display = 'none'; return; }
+    const r = ratiosList[ratiosList.length - 1];
+
+    const groups = [
+      { title: '💧 Liquidity', rows: [
+        ['Current Ratio',   r.current_ratio,       1.5, 1.0],
+        ['Quick Ratio',     r.quick_ratio,          1.0, 0.7],
+        ['Cash Ratio',      r.cash_ratio,           0.5, 0.2],
+        ['NWC / Revenue %', r.nwc_to_revenue,       5,   0],
+      ]},
+      { title: '⚖️ Leverage', rows: [
+        ['Debt / Equity',      r.debt_to_equity,        null, null, true],
+        ['Debt / Assets',      r.debt_to_assets,        null, null, true],
+        ['Interest Coverage',  r.interest_coverage,     3.0,  1.5],
+        ['DSCR',               r.debt_service_coverage, 1.5,  1.0],
+        ['Net Debt / EBITDA',  r.net_debt_to_ebitda,    null, null, true],
+        ['Financial Leverage', r.financial_leverage,    null, null, true],
+        ['LT Debt Ratio',      r.lt_debt_ratio,         null, null, true],
+      ]},
+      { title: '💹 Profitability', rows: [
+        ['Gross Margin %',  r.gross_margin_pct,  40, 20],
+        ['EBITDA Margin %', r.ebitda_margin_pct, 15,  5],
+        ['EBIT Margin %',   r.ebit_margin_pct,   12,  3],
+        ['Net Margin %',    r.net_margin_pct,    10,  0],
+        ['ROE %',           r.roe,               15,  5],
+        ['ROA %',           r.roa,                8,  2],
+        ['ROCE %',          r.roce,              15,  8],
+      ]},
+      { title: '⚙️ Efficiency', rows: [
+        ['Asset Turnover',       r.asset_turnover,       1.0, 0.5],
+        ['Equity Turnover',      r.equity_turnover,      null, null],
+        ['Receivables Days',     r.receivables_days,     null, null, true],
+        ['Payables Days',        r.payables_days,        null, null],
+        ['Inventory Days',       r.inventory_days,       null, null, true],
+        ['Cash Conv. Cycle',     r.cash_conversion_cycle,null, null, true],
+        ['Fixed Asset Turnover', r.fixed_asset_turnover, 2.0, 1.0],
+      ]},
+      { title: '💰 Cash Flow Quality', rows: [
+        ['OCF / Revenue',        r.ocf_to_revenue,       0.10, 0.05],
+        ['OCF / Net Profit',     r.ocf_to_net_profit,    1.0,  0.7],
+        ['OCF / Total Debt',     r.ocf_to_total_debt,    0.3,  0.15],
+        ['OCF / Interest',       r.ocf_to_interest,      3.0,  1.5],
+        ['Free Cash Flow (Cr)',  r.free_cash_flow,        null, null],
+        ['Capex / Revenue %',    r.capex_to_revenue,      null, null, true],
+        ['Cash Earnings Quality',r.cash_earnings_quality, 0.8, 0.5],
+      ]},
+      { title: '📈 Growth (YoY)', rows: [
+        ['Revenue Growth %', r.revenue_growth_pct,  10, 0],
+        ['Profit Growth %',  r.profit_growth_pct,   10, 0],
+        ['EBITDA Growth %',  r.ebitda_growth_pct,   10, 0],
+        ['Asset Growth %',   r.asset_growth_pct,    null, null],
+        ['Debt Growth %',    r.debt_growth_pct,     null, null, true],
+      ]},
+      { title: '👤 Governance', rows: [
+        ['Promoter Holding %', r.promoter_holding_pct, 50, 26],
+      ]},
+    ];
+
+    // Two-column grid of ratio group sub-tables
+    let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
+    for (const g of groups) {
+      const valid = g.rows.filter(([, v]) => v != null);
+      if (!valid.length) continue;
+      html += `<div style="background:var(--gray1);border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid var(--gray2)">${g.title}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">`;
+      for (const [label, val, good, warn, lowerBetter] of valid) {
+        let color = 'var(--gray4)'; let tag = '';
+        if (good != null && val != null) {
+          const isGood = lowerBetter ? val <= good : val >= good;
+          const isWarn = lowerBetter ? val <= warn : val >= warn;
+          color = isGood ? '#0d7a4e' : isWarn ? '#f59e0b' : '#c0392b';
+          tag   = isGood ? '✓' : isWarn ? '!' : '✗';
+        }
+        html += `<tr style="border-bottom:1px solid var(--gray2)">
+          <td style="padding:5px 4px;color:var(--gray4)">${label}</td>
+          <td style="padding:5px 4px;text-align:right;font-family:DM Mono,monospace;font-weight:600;color:${color}">
+            ${typeof val === 'number' ? val.toFixed(2) : val}
+          </td>
+          <td style="padding:5px 4px;text-align:center;font-size:10px;color:${color};font-weight:700;width:18px">${tag}</td>
+        </tr>`;
+      }
+      html += '</table></div>';
+    }
+    html += '</div>';
+    document.getElementById('ratioGroups').innerHTML = html;
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑤ — Distress & Cash Flow (Financials tab, right column)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderDistress(ratiosList) {
+    if (!ratiosList?.length) return;
+    const r = ratiosList[ratiosList.length - 1];
+    const z = r.altman_z_score;
+    if (!z) return;
+
+    const zone   = r.altman_zone || 'unknown';
+    const zColor = zone === 'safe' ? '#0d7a4e' : zone === 'grey' ? '#f59e0b' : '#c0392b';
+    const zDesc  = zone === 'safe'
+      ? 'Safe Zone — Z > 2.99'
+      : zone === 'grey'
+        ? 'Grey Zone — 1.81 < Z ≤ 2.99'
+        : 'Distress Zone — Z ≤ 1.81';
+
+    const cfItems = [
+      { label: 'OCF / Net Profit',    val: r.ocf_to_net_profit,    good: 1.0, hint: '≥1.0 = cash-backed profits' },
+      { label: 'Cash Earnings Qual.', val: r.cash_earnings_quality, good: 0.8, hint: '≥0.8 = high conversion' },
+      { label: 'Free Cash Flow',      val: r.free_cash_flow,        good: 0,   hint: 'Positive = self-funding' },
+      { label: 'OCF / Total Debt',    val: r.ocf_to_total_debt,     good: 0.3, hint: '≥0.3 = serviceable debt' },
+    ].filter(i => i.val != null);
+
+    let html = `
+      <div style="background:${zone === 'safe' ? '#e6f4ee' : zone === 'grey' ? '#fff8e1' : '#fdecea'};
+           border-radius:8px;padding:14px;margin-bottom:14px;border-left:5px solid ${zColor}">
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <div style="font-size:36px;font-weight:700;color:${zColor};font-family:DM Mono,monospace">${z.toFixed(2)}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:${zColor}">Altman Z-Score</div>
+            <div style="font-size:11px;color:var(--gray4);margin-top:2px">${zDesc}</div>
+          </div>
+        </div>
+      </div>`;
+
+    if (cfItems.length) {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+      for (const { label, val, good, hint } of cfItems) {
+        const color = val >= good ? '#0d7a4e' : '#c0392b';
+        html += `<div style="background:var(--gray1);border-radius:8px;padding:10px;border-top:3px solid ${color}">
+          <div style="font-size:18px;font-weight:700;color:${color};font-family:DM Mono,monospace">${val.toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--gray4);margin-top:3px;font-weight:600">${label}</div>
+          <div style="font-size:10px;color:var(--gray3);margin-top:2px">${hint}</div>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    document.getElementById('distressContent').innerHTML = html;
+    document.getElementById('distressCard').style.display = 'block';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑥ — SWOT (Intelligence tab)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderSwot(swot) {
+    const keys = ['strengths', 'weaknesses', 'opportunities', 'threats'];
+    const cfg  = {
+      strengths:     { cls: 's', label: '💪 Strengths' },
+      weaknesses:    { cls: 'w', label: '⚠️ Weaknesses' },
+      opportunities: { cls: 'o', label: '🚀 Opportunities' },
+      threats:       { cls: 't', label: '🔴 Threats' },
+    };
+    if (!keys.some(k => (swot[k] || []).length)) return;
+
+    let html = '';
+    for (const key of keys) {
+      const items = swot[key] || [];
+      html += `<div class="swot-box ${cfg[key].cls}">
+        <h4>${cfg[key].label}</h4>
+        <ul>
+          ${items.length
+            ? items.map(i => `<li>${i}</li>`).join('')
+            : '<li style="color:var(--gray3)">No data</li>'}
+        </ul>
+      </div>`;
+    }
+    document.getElementById('swotGrid').innerHTML = html;
+    document.getElementById('swotCard').style.display = 'block';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑦ — CAM Report (Intelligence tab)
+  //  Appended to #camAnchor instead of after swotCard
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderCAM(camMarkdown) {
+    if (!camMarkdown) return;
+    if (document.getElementById('camCard')) return; // already rendered
+
+    const anchor = document.getElementById('camAnchor');
+    const card   = document.createElement('div');
+    card.className = 'analysis-card';
+    card.id        = 'camCard';
+
+    // Show first 2 sections as preview, rest is expanded on demand
+    const lines      = camMarkdown.split('\n');
+    const h2Indices  = lines.reduce((acc, l, i) => l.startsWith('## ') ? [...acc, i] : acc, []);
+    const previewEnd = h2Indices.length >= 3 ? h2Indices[2] : lines.length;
+    const preview    = lines.slice(0, previewEnd).join('\n');
+    const rest       = lines.slice(previewEnd).join('\n');
+
+    card.innerHTML = `
+      <div class="card-title">
+        <div class="icon">📄</div>Credit Appraisal Memo
+        <span style="margin-left:auto;font-size:11px;color:var(--gray3)">LLM Generated</span>
+      </div>
+      <div id="camPreview" style="font-size:13px;line-height:1.7;color:var(--gray4);max-height:400px;overflow:hidden;position:relative">
+        ${_mdToHtml(preview)}
+        <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(transparent,white)"></div>
+      </div>
+      <div id="camFull" style="display:none;font-size:13px;line-height:1.7;color:var(--gray4)">${_mdToHtml(rest)}</div>
+      <div style="margin-top:12px;display:flex;gap:10px">
+        <button class="btn btn-outline" onclick="toggleCAM()" id="camToggle">Read Full CAM ↓</button>
+      </div>`;
+
+    anchor.appendChild(card);
+  }
+
+  /* Minimal markdown → HTML converter (same as original) */
+  function _mdToHtml(md) {
+    return md
+      .replace(/^### (.+)$/gm, '<h4 style="font-size:13px;font-weight:700;color:var(--navy);margin:12px 0 4px">$1</h4>')
+      .replace(/^## (.+)$/gm,  '<h3 style="font-size:14px;font-weight:700;color:var(--blue);margin:16px 0 6px;border-bottom:1px solid var(--gray2);padding-bottom:4px">$1</h3>')
+      .replace(/^# (.+)$/gm,   '<h2 style="font-size:16px;font-weight:800;color:var(--navy);margin:0 0 12px">$1</h2>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^- (.+)$/gm,   '<div style="padding:2px 0 2px 14px;border-left:2px solid var(--gray2);margin:2px 0">• $1</div>')
+      .replace(/\n\n/g, '<br>')
+      .replace(/\n/g, ' ');
+  }
+
+  function toggleCAM() {
+    const preview = document.getElementById('camPreview');
+    const full    = document.getElementById('camFull');
+    const btn     = document.getElementById('camToggle');
+    if (full.style.display === 'none') {
+      preview.style.display = 'none';
+      full.style.display    = 'block';
+      btn.textContent       = 'Collapse ↑';
+    } else {
+      full.style.display    = 'none';
+      preview.style.display = 'block';
+      btn.textContent       = 'Read Full CAM ↓';
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑧ — Risk Flags + Research Signals (Risk tab, left column)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderRiskFlags(risk) {
+    const flags   = risk.rule_flags   || [];
+    const signals = risk.risk_signals || [];
+    let html = '';
+
+    if (flags.length) {
+      const sevOrder = { critical: 0, high: 1, medium: 2 };
+      flags.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
+      html += `<div style="font-size:11px;font-weight:700;color:var(--gray3);letter-spacing:.5px;margin-bottom:10px">
+        RULE ENGINE FLAGS
+        <span style="font-weight:400;color:var(--gray3)">(penalty: ${risk.rule_penalty ?? 0} pts)</span>
+      </div>`;
+      for (const f of flags) {
+        const [bg, fg] = f.severity === 'critical'
+          ? ['#fdecea', '#c0392b']
+          : f.severity === 'high'
+            ? ['#fff0e6', '#c05621']
+            : ['#fff8e1', '#92610a'];
+        html += `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray2);align-items:flex-start">
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;background:${bg};color:${fg};margin-top:1px">
+            ${f.severity.toUpperCase()}
+          </span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500">${f.description}</div>
+            <div style="font-size:11px;color:var(--gray3);margin-top:3px">
+              Actual: <b>${typeof f.actual_value === 'number' ? f.actual_value.toFixed(2) : f.actual_value}</b>
+              &nbsp;|&nbsp; Threshold: <b>${f.threshold}</b>
+              &nbsp;|&nbsp; Penalty: <b style="color:${fg}">-${f.penalty} pts</b>
+            </div>
+          </div>
+        </div>`;
+      }
+    }
+
+    if (signals.length) {
+      html += `<div style="font-size:11px;font-weight:700;color:var(--gray3);letter-spacing:.5px;margin:16px 0 10px">RESEARCH SIGNALS</div>`;
+      for (const s of signals) {
+        html += `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray2)">
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff0e6;color:#c05621;flex-shrink:0">
+            ${(s.category || '').replace(/_/g, ' ').toUpperCase()}
+          </span>
+          <div style="font-size:12.5px">${s.headline || ''}</div>
+        </div>`;
+      }
+    }
+
+    if (!flags.length && !signals.length) {
+      html = '<div style="color:var(--green);font-size:13px;padding:10px 0">✅ No rule flags or research signals triggered.</div>';
+    }
+
+    document.getElementById('flagsList').innerHTML = html;
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑨ — SHAP Waterfall (Risk tab, right column)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderShap(contrib) {
+    const entries = Object.entries(contrib)
+      .filter(([, v]) => v !== 0)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, 15);
+    if (!entries.length) return;
+
+    const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v)), 0.0001);
+    let html = '';
+    for (const [feat, val] of entries) {
+      const pct   = (Math.abs(val) / maxAbs * 100).toFixed(1);
+      const color = val > 0 ? '#c0392b' : '#0d7a4e';
+      const label = feat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const dir   = val > 0 ? '▲ risk' : '▼ risk';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray2);font-size:12px">
+        <div style="width:140px;flex-shrink:0;color:var(--gray4);font-size:11px">${label}</div>
+        <div style="flex:1;background:var(--gray2);border-radius:4px;height:7px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div>
+        </div>
+        <div style="width:60px;text-align:right;font-family:DM Mono,monospace;font-size:11px;color:${color};font-weight:600">
+          ${val > 0 ? '+' : ''}${val.toFixed(4)}
+        </div>
+        <div style="width:56px;font-size:10px;color:${color}">${dir}</div>
+      </div>`;
+    }
+    document.getElementById('shapList').innerHTML = html;
+    document.getElementById('shapCard').style.display = 'block';
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERER ⑩ — ML Training Panel (ML tab)
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderMlPanel(risk, mlStatus) {
+    document.getElementById('mlTotalSamples').textContent = mlStatus.session_labeled ?? 0;
+    document.getElementById('mlDefaults').textContent     = mlStatus.session_defaults ?? 0;
+    document.getElementById('mlHealthy').textContent      = mlStatus.session_healthy ?? 0;
+
+    const badge = document.getElementById('modelStatusBadge');
+    if (mlStatus.models_trained) {
+      badge.textContent      = '🤖 6-Model Ensemble Active';
+      badge.style.background = 'var(--lgreen)';
+      badge.style.color      = 'var(--green)';
+
+      document.getElementById('aucPanel').style.display = 'block';
+      document.getElementById('mlAuc').textContent      = mlStatus.ensemble_auc?.toFixed(4) ?? '—';
+
+      const aucs        = mlStatus.model_aucs || {};
+      const modelLabels = { xgb: 'XGBoost', gbm: 'Grad.Boost', rf: 'Random Forest', svm: 'SVM', lr: 'Logistic Reg.', knn: 'KNN' };
+      const weights     = mlStatus.weights || {};
+      document.getElementById('individualAucs').innerHTML =
+        Object.entries(modelLabels).map(([k, label]) =>
+          `<div style="background:rgba(255,255,255,.5);border-radius:6px;padding:6px">
+            <div style="font-size:14px;font-weight:700;color:var(--green);font-family:DM Mono,monospace">
+              ${aucs[k]?.toFixed(4) ?? '—'}
+            </div>
+            <div style="font-size:9px;color:var(--green);opacity:.8">${label} (w=${((weights[k] || 0) * 100).toFixed(0)}%)</div>
+          </div>`
+        ).join('');
+
+      document.getElementById('mlTrainedAt').textContent =
+        `Trained on ${mlStatus.train_samples} samples · ${(mlStatus.trained_at || '').slice(0, 16).replace('T', ' ')}`;
+    }
+
+    // XGBoost feature importances (shown after model trains)
+    const topFeats = mlStatus.top_features || [];
+    if (topFeats.length) {
+      const maxImp = topFeats[0].importance;
+      document.getElementById('featImportList').innerHTML = topFeats.map(tf =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--gray2)">
+          <div style="width:170px;flex-shrink:0;color:var(--gray4)">${tf.feature.replace(/_/g, ' ')}</div>
+          <div style="flex:1;background:var(--gray2);border-radius:4px;height:7px">
+            <div style="width:${(tf.importance / maxImp * 100).toFixed(1)}%;height:100%;background:linear-gradient(90deg,#1a56db,#60a5fa);border-radius:4px"></div>
+          </div>
+          <div style="width:60px;text-align:right;font-family:DM Mono,monospace;font-size:11px;color:var(--blue)">
+            ${tf.importance.toFixed(4)}
+          </div>
+        </div>`
+      ).join('');
+      document.getElementById('featImportPanel').style.display = 'block';
+    }
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  LABEL SUBMISSION — adds sample to ML training set
+  // ══════════════════════════════════════════════════════════════════════════
+  async function submitLabel() {
+    const label = parseInt(document.getElementById('labelValue').value);
+    const notes = document.getElementById('labelNotes').value;
+    const msg   = document.getElementById('labelMsg');
+    msg.style.color = 'var(--gray3)';
+    msg.textContent  = 'Saving…';
+    try {
+      const res  = await fetch(`${API}/ml/label`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loan_application_id: loanId, label, notes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+
+      msg.style.color = 'var(--green)';
+      msg.textContent  = data.message;
+      document.getElementById('mlTotalSamples').textContent = data.total_samples;
+      document.getElementById('mlDefaults').textContent     = data.n_defaults;
+      document.getElementById('mlHealthy').textContent      = data.n_healthy;
+
+      // If auto-training fired, refresh all ML-dependent panels
+      if (data.auto_trained) {
+        const [mlR, riskR] = await Promise.all([
+          fetch(`${API}/ml/status`),
+          fetch(`${API}/analysis/risk/${loanId}`),
+        ]);
+        const [ml2, risk2] = await Promise.all([mlR.json(), riskR.json()]);
+        renderMlPanel(risk2, ml2);
+        renderScoreHeader(risk2);
+        renderModelPDs(risk2);
+        renderShap(risk2.feature_contributions || {});
+      }
+
+      // Refresh samples list (right column of ML tab)
+      const samples = await (await fetch(`${API}/ml/samples`)).json();
+      renderSamplesList(samples);
+
+    } catch(e) {
+      msg.style.color = '#c0392b';
+      msg.textContent  = 'Error: ' + e.message;
+    }
+  }
+
+  /* Render the labeled samples table in the right column of ML tab */
+  function renderSamplesList(samples) {
+    if (!samples.length) return;
+    document.getElementById('samplesBody').innerHTML = samples.map(s => {
+      const [bg, fg, txt] = s.label === 1
+        ? ['#fdecea', '#c0392b', '❌ Default']
+        : ['#e6f4ee', '#0d7a4e', '✅ Healthy'];
+      return `<tr style="border-bottom:1px solid var(--gray2)">
+        <td style="padding:7px 8px;font-weight:600">${s.company_name}</td>
+        <td style="padding:7px 8px">
+          <span style="font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;background:${bg};color:${fg}">${txt}</span>
+        </td>
+        <td style="padding:7px 8px;font-family:DM Mono,monospace">${s.risk_score != null ? s.risk_score.toFixed(1) : '—'}</td>
+        <td style="padding:7px 8px">${s.credit_rating || '—'}</td>
+        <td style="padding:7px 8px;color:var(--gray3);font-size:11px">${s.notes || ''}</td>
+        <td style="padding:7px 8px">
+          <button onclick="deleteSample('${s.sample_id}')"
+            style="font-size:11px;border:1px solid var(--gray2);border-radius:4px;padding:2px 8px;cursor:pointer;color:#c0392b;background:transparent">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    document.getElementById('samplesPanel').style.display = 'block';
+  }
+
+  async function deleteSample(sid) {
+    await fetch(`${API}/ml/samples/${sid}`, { method: 'DELETE' });
+    const [samples, stat] = await Promise.all([
+      fetch(`${API}/ml/samples`).then(r => r.json()),
+      fetch(`${API}/ml/status`).then(r => r.json()),
+    ]);
+    renderSamplesList(samples);
+    document.getElementById('mlTotalSamples').textContent = stat.session_labeled ?? 0;
+    document.getElementById('mlDefaults').textContent     = stat.session_defaults ?? 0;
+    document.getElementById('mlHealthy').textContent      = stat.session_healthy ?? 0;
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  DOWNLOAD PDF REPORT
+  // ══════════════════════════════════════════════════════════════════════════
+  async function downloadReport() {
+    const btn = document.getElementById('dlBtn');
+    btn.textContent = '⏳ Generating…';
+    btn.disabled    = true;
+    try {
+      const res  = await fetch(`${API}/analysis/report/${loanId}/download`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      Object.assign(document.createElement('a'), {
+        href: url,
+        download: `CAM_${loanId.slice(0, 8)}.pdf`
+      }).click();
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      alert('Download failed: ' + e.message);
+    } finally {
+      btn.textContent = '⬇ Download PDF Report';
+      btn.disabled    = false;
+    }
+  }
+
+  // ── Utility ───────────────────────────────────────────────────────────────
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+"""
+agents/financial_agent.py
+
+Computes all financial ratios from ExtractedData rows.
+Handles multi-year data for growth calculations.
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from loguru import logger
+
+
+def safe_div(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    """Divide two optional floats; returns None on missing data or divide-by-zero."""
+    if numerator is None or denominator is None:
+        return None
+    if denominator == 0:
+        return None
+    return round(numerator / denominator, 4)
+
+
+def compute_ratios(current: dict, prior: dict | None = None) -> dict:
+    """
+    Compute a full suite of financial ratios.
+
+    Args:
+        current: Dict of ExtractedData fields for the current fiscal year.
+        prior:   Dict for the prior fiscal year (used for growth rates).
+
+    Returns:
+        Dict matching FinancialRatios columns.
+    """
+    ratios: dict = {
+        "fiscal_year": current.get("fiscal_year"),
+        "entity_id": current.get("entity_id"),
+    }
+
+    # ── Liquidity ──────────────────────────────────────────────────────────────
+    ratios["current_ratio"] = safe_div(
+        current.get("current_assets"), current.get("current_liabilities")
+    )
+    quick_assets = _subtract(current.get("current_assets"), current.get("inventories"))
+    ratios["quick_ratio"] = safe_div(quick_assets, current.get("current_liabilities"))
+    ratios["cash_ratio"] = safe_div(
+        current.get("cash_and_equivalents"), current.get("current_liabilities")
+    )
+
+    # ── Leverage / Solvency ────────────────────────────────────────────────────
+    ratios["debt_to_equity"] = safe_div(
+        current.get("total_debt"), current.get("shareholders_equity")
+    )
+    ratios["debt_to_assets"] = safe_div(
+        current.get("total_debt"), current.get("total_assets")
+    )
+    ratios["interest_coverage"] = safe_div(
+        current.get("ebit"), current.get("interest_expense")
+    )
+    # Debt Service Coverage = EBITDA / (Interest + Principal repayments)
+    # We approximate principal as short_term_debt if no schedule is provided
+    principal_approx = current.get("short_term_debt") or 0.0
+    interest = current.get("interest_expense") or 0.0
+    debt_service = interest + principal_approx
+    ratios["debt_service_coverage"] = safe_div(current.get("ebitda"), debt_service or None)
+
+    # ── Profitability ──────────────────────────────────────────────────────────
+    revenue = current.get("revenue") or current.get("total_income")
+    ratios["gross_margin_pct"] = _pct(safe_div(current.get("gross_profit"), revenue))
+    ratios["ebitda_margin_pct"] = _pct(safe_div(current.get("ebitda"), revenue))
+    ratios["net_margin_pct"] = _pct(safe_div(current.get("net_profit"), revenue))
+    ratios["roe"] = _pct(safe_div(current.get("net_profit"), current.get("shareholders_equity")))
+    ratios["roa"] = _pct(safe_div(current.get("net_profit"), current.get("total_assets")))
+    # ROCE = EBIT / Capital Employed (total assets - current liabilities)
+    capital_employed = _subtract(current.get("total_assets"), current.get("current_liabilities"))
+    ratios["roce"] = _pct(safe_div(current.get("ebit"), capital_employed))
+
+    # ── Efficiency ─────────────────────────────────────────────────────────────
+    ratios["asset_turnover"] = safe_div(revenue, current.get("total_assets"))
+    # Days ratios (use 365-day year)
+    ratios["receivables_days"] = _days(current.get("trade_receivables"), revenue)
+    ratios["payables_days"] = _days(
+        current.get("trade_payables"),
+        current.get("cost_of_goods_sold") or revenue,
+    )
+    ratios["inventory_days"] = _days(
+        current.get("inventories"),
+        current.get("cost_of_goods_sold") or revenue,
+    )
+    r_days = ratios["receivables_days"] or 0
+    p_days = ratios["payables_days"] or 0
+    i_days = ratios["inventory_days"] or 0
+    ratios["cash_conversion_cycle"] = round(r_days + i_days - p_days, 2) if (r_days or i_days or p_days) else None
+
+    # ── Growth Rates (YoY) ─────────────────────────────────────────────────────
+    if prior:
+        prior_revenue = prior.get("revenue") or prior.get("total_income")
+        ratios["revenue_growth_pct"] = _growth_pct(revenue, prior_revenue)
+        ratios["profit_growth_pct"] = _growth_pct(current.get("net_profit"), prior.get("net_profit"))
+    else:
+        ratios["revenue_growth_pct"] = None
+        ratios["profit_growth_pct"] = None
+
+    return ratios
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _subtract(a: Optional[float], b: Optional[float]) -> Optional[float]:
+    if a is None:
+        return None
+    return a - (b or 0)
+
+
+def _pct(ratio: Optional[float]) -> Optional[float]:
+    if ratio is None:
+        return None
+    return round(ratio * 100, 4)
+
+
+def _days(balance: Optional[float], flow: Optional[float]) -> Optional[float]:
+    ratio = safe_div(balance, flow)
+    if ratio is None:
+        return None
+    return round(ratio * 365, 2)
+
+
+def _growth_pct(current_val: Optional[float], prior_val: Optional[float]) -> Optional[float]:
+    if current_val is None or prior_val is None or prior_val == 0:
+        return None
+    return round(((current_val - prior_val) / abs(prior_val)) * 100, 4)
+
+
+# ─── Analysis Narrative ───────────────────────────────────────────────────────
+
+def interpret_ratios(ratios: dict) -> list[dict]:
+    """
+    Return a list of {metric, value, status, comment} dicts for analyst narrative.
+    status: 'good' | 'warning' | 'critical'
+    """
+    flags = []
+
+    def flag(metric: str, value, condition_good, condition_warn, fmt=None):
+        if value is None:
+            return
+        status = "good" if condition_good(value) else ("warning" if condition_warn(value) else "critical")
+        display = f"{value:.2f}" if fmt != "pct" else f"{value:.2f}%"
+        comment = _ratio_comment(metric, value, status)
+        flags.append({"metric": metric, "value": value, "display": display, "status": status, "comment": comment})
+
+    flag("Current Ratio", ratios.get("current_ratio"),
+         lambda v: v >= 1.5, lambda v: v >= 1.0)
+    flag("Quick Ratio", ratios.get("quick_ratio"),
+         lambda v: v >= 1.0, lambda v: v >= 0.7)
+    flag("Debt-to-Equity", ratios.get("debt_to_equity"),
+         lambda v: v <= 1.5, lambda v: v <= 3.0)
+    flag("Interest Coverage", ratios.get("interest_coverage"),
+         lambda v: v >= 3.0, lambda v: v >= 1.5)
+    flag("DSCR", ratios.get("debt_service_coverage"),
+         lambda v: v >= 1.5, lambda v: v >= 1.0)
+    flag("Net Margin %", ratios.get("net_margin_pct"),
+         lambda v: v >= 10.0, lambda v: v >= 0.0, fmt="pct")
+    flag("ROE %", ratios.get("roe"),
+         lambda v: v >= 15.0, lambda v: v >= 5.0, fmt="pct")
+    flag("Revenue Growth %", ratios.get("revenue_growth_pct"),
+         lambda v: v >= 10.0, lambda v: v >= 0.0, fmt="pct")
+
+    return flags
+
+
+def _ratio_comment(metric: str, value: float, status: str) -> str:
+    comments = {
+        ("Current Ratio", "good"): "Adequate short-term liquidity.",
+        ("Current Ratio", "warning"): "Liquidity is tight; monitor working capital.",
+        ("Current Ratio", "critical"): "Insufficient current assets to cover current liabilities.",
+        ("Debt-to-Equity", "good"): "Comfortable leverage level.",
+        ("Debt-to-Equity", "warning"): "Elevated leverage; warrants monitoring.",
+        ("Debt-to-Equity", "critical"): "Highly leveraged; significant repayment risk.",
+        ("Interest Coverage", "good"): "Strong ability to service interest obligations.",
+        ("Interest Coverage", "warning"): "Thin interest coverage margin.",
+        ("Interest Coverage", "critical"): "Unable to comfortably cover interest from operating profit.",
+        ("Net Margin %", "good"): "Healthy profitability.",
+        ("Net Margin %", "warning"): "Slim margins; vulnerability to cost pressure.",
+        ("Net Margin %", "critical"): "Loss-making or near-zero profitability.",
+    }
+    return comments.get((metric, status), f"{metric} is {status}.")
