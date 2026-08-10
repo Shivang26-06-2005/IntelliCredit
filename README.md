@@ -33,11 +33,30 @@
 
 ---
 
+## Architecture & Workflow
 
+```mermaid
+graph TD
+    A[Financial Documents / PDF / DOCX / XLSX] --> B[Extraction Engine - PDFPlumber / Tesseract OCR]
+    B --> C[LLM Schema Mapping - Ollama / Gemini]
+    C --> D[Financial Ratio Engine]
+    D --> E[Multi-Agent System]
+    E --> F1[Research Agent - Sentiment / Litigation]
+    E --> F2[Financial Agent - Ratio Computation]
+    E --> F3[Report Agent - SWOT / CAM Generation]
+    D --> G[Hybrid Risk Engine]
+    F1 --> G
+    G --> H1[Deterministic Rule Engine]
+    G --> H2[ML Ensemble - XGBoost, RF, GBM, SVM, KNN, IsoForest]
+    G --> I[Risk Score & Credit Rating]
+    I --> J[CAM PDF Report & Frontend Dashboard]
+```
+
+---
 
 ## Directory Structure
 
-
+```text
 ├── agents/                  # LLM AI Agents
 │   ├── financial_agent.py   # Computes ratios & extracts financial signals
 │   ├── research_agent.py    # News, sentiment & risk signal research
@@ -66,9 +85,9 @@
 ├── main.py                  # FastAPI Application Entry Point
 ├── requirements.txt         # Project Dependencies
 └── .env                     # Environment variables configuration
+```
 
-
-
+---
 
 ## Quick Start
 
@@ -84,7 +103,7 @@
    ```bash
    git clone https://github.com/Shivang26-06-2005/IntelliCredit.git
    cd IntelliCredit
-   
+   ```
 
 2. **Create and activate a virtual environment:**
    ```bash
