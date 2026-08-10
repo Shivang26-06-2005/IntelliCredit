@@ -173,7 +173,3 @@ uvicorn main:app --reload --port 8000
 | `POST` | `/api/v1/ml/train` | Retrain ML models on collected data samples |
 
 ---
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
