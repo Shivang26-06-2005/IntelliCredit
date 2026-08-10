@@ -95,7 +95,7 @@ graph TD
 
 - **Python 3.10+**
 - (Optional) **Ollama** installed locally if using local LLMs (e.g. `ollama run qwen3:8b`).
-- (Optional) **Tesseract OCR** installed at `C:\Program Files\Tesseract-OCR\tesseract.exe` (or configured via `.env`).
+- (Optional) **Tesseract OCR** installed  (or configured via `.env`).
 
 ### 2. Installation
 
@@ -145,7 +145,7 @@ GEMINI_MODEL=gemini-2.0-flash
 # Storage & Utilities
 UPLOAD_DIR=./uploads
 REPORTS_DIR=./reports
-TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+TESSERACT_CMD=
 ```
 
 ### 4. Running the Application
