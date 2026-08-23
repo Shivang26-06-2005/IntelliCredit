@@ -76,7 +76,7 @@ graph TD
 ├── engines/                 # Analytical & Machine Learning Engines
 │   ├── ml_trainer.py        # ML training pipeline across 7 algorithms
 │   └── risk_scoring_engine.py# Hybrid rule-based + ML risk scorer
-├── frontend                 # Single-Page Web Dashboard
+├── frontend                 # Web Dashboard
 │   
 ├── models/                  # Saved ML model artifacts (.pkl, .json)
 ├── reports/                 # Generated PDF Credit Assessment Memorandums
